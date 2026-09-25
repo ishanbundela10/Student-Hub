@@ -8,11 +8,12 @@ import propertyRouter from "./routes/property.routes.js"
 import dashboardRouter from "./routes/dashboard.routes.js"
 import visitRouter from "./routes/visit.routes.js";
 import bookingRouter from "./routes/booking.routes.js";
+import tiffinsRouter from "./routes/tiffins.routes.js";
 
 const app = express()
 
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true
 }))
 
@@ -41,6 +42,7 @@ app.use('/api/v1/properties', propertyRouter)
 app.use('/api/v1/dashboard', dashboardRouter )
 app.use("/api/v1/visits", visitRouter)
 app.use("/api/v1/bookings", bookingRouter);
+app.use("/api/v1/tiffins", tiffinsRouter);
 
 
 export {app}

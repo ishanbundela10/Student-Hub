@@ -12,6 +12,7 @@ import Signup from './pages/Signup';
 import Dashboard from "./pages/Dashboard";
 import AddProperty from "./pages/AddProperty";
 import EditProperty from "./pages/EditProperty";
+import AddTiffin from "./pages/AddTiffin";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/tiffin/:id" element={<TiffinDetail />} />
       <Route path="/add-property" element={<AddProperty />} />
       <Route path="/edit-property/:id" element={<EditProperty />} />
+      <Route path="/add-tiffin" element={<AddTiffin />} />
     </Route>
     <Route path="*" element={<div>404 Not Found</div>} />
   </Routes>
