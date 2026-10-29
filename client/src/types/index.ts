@@ -125,23 +125,121 @@ export interface Property {
   visitAvailability: VisitAvailability[];
 }
 
+// export interface ItemIncluded {
+//   itemName: string;
+//   quantity: string;
+// }
+
+// export interface DayMenu {
+//   lunch: string;
+//   dinner: string;
+// }
+
+// export interface WeeklyMenu {
+//   Monday: DayMenu;
+//   Tuesday: DayMenu;
+//   Wednesday: DayMenu;
+//   Thursday: DayMenu;
+//   Friday: DayMenu;
+//   Saturday: DayMenu;
+//   Sunday: DayMenu;
+// }
+
+// export interface Address {
+//   street: string;
+//   landmark: string;
+//   area: string;
+//   city: string;
+//   state: string;
+//   pincode: string;
+// }
+
+// export interface MealPricing {
+//   singleMeal: number;
+//   weekly?: number;
+//   monthly?: number;
+// }
+
+// export interface Pricing {
+//   lunch?: MealPricing;
+//   dinner?: MealPricing;
+//   combo?: MealPricing;
+// }
+
+// export interface TiffinService {
+//   _id: string;
+//   name: string;
+//   description: string;
+//   foodType: "veg" | "non-veg" | "jain" | "vegan";
+//   cuisine: string[];
+//   thumbnail: string;
+//   images?: string[];
+//   pricing: Pricing;
+//   itemsIncluded: ItemIncluded[];
+//   providerName: string;
+//   address: Address;
+//   contactPhone: string;
+//   contactEmail?: string;
+//   details: {
+//     mealTime: "Lunch" | "Dinner" | "Both";
+//     calories?: string;
+//     preparationType?: string;
+//     packaging?: string;
+//     deliverySlots?: string[];
+//   };
+//   weeklyMenu?: WeeklyMenu;
+//   rating?: number;
+//   reviewsCount?: number;
+//   isAvailable: boolean;
+//   createdAt?: string;
+//   updatedAt?: string;
+// }
+
+export interface Address {
+  area: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+export interface Timing {
+  lunch?: string;
+  dinner?: string;
+}
+
 export interface TiffinService {
   _id: string;
+  
   name: string;
+  kitchenName?: string;
   providerName: string;
-  location: string;
-  cuisine: string[];
-  pricePerMeal: number;
-  mealTypes: ('breakfast' | 'lunch' | 'dinner')[];
   description: string;
-  images: string[];
+  foodType: "Pure Veg" | "Non-Veg" | "Jain" | "Vegan" | "veg" | "non-veg" | "jain" | "vegan";
+  
+  typicalMeal: string;
+  
+  pricing:{
+    pricePerMeal: number;
+    pricePerMonth?: number; 
+  };
+  
+  // Timings & Delivery
+  mealTime: "Lunch" | "Dinner" | "Both";
+  timing?: Timing;
+  deliveryOptions?: string;
+  
+  address: Address;
   contactPhone: string;
-  contactEmail: string;
+  contactEmail?: string;
+  
+  thumbnail: string;
+  images?: string[];
+  
   rating?: number;
-  reviews?: number;
-  available: boolean;
-  weeklyDiscount: boolean;
-  monthlyDiscount: boolean;
+  reviewsCount?: number;
+  isAvailable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Review {

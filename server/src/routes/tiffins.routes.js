@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { addTiffin, getAllTiffins, getTiffinById } from "../controllers/tiffins.controller.js";
+import { addTiffin, getAllTiffins, getTiffinById, deleteTiffin,toggleTiffinStatus } from "../controllers/tiffins.controller.js";
 
 const router = Router();
 
@@ -16,7 +16,9 @@ router.route("/add").post(
 );
 
 // ✅ Public routes
-router.route("/").get(getAllTiffins);
-router.route("/:tiffinId").get(getTiffinById);
+router.route("/").get(getAllTiffins)
+router.route("/:tiffinId").get(getTiffinById)
+router.route("/:id").delete(verifyJWT, deleteTiffin)
+router.route("/:id/toggle").patch(verifyJWT, toggleTiffinStatus)
 
 export default router;

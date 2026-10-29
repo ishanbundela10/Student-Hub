@@ -9,38 +9,48 @@ export default function Rooms() {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 20000]);
   const [showFilters, setShowFilters] = useState(false);
   const [applyFilters, setApplyFilters] = useState(false);
-  const [rooms, setRooms] = useState<Property[]>([])
+  const [rooms, setRooms] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchHostels = async () => {
+    let isMounted = true;
+    const fetchRooms = async () => {
       try {
-        const res = await getAllProperties("room")
-
-        console.log(res.data.data)
-        setRooms(res.data.data)
+        setLoading(true);
+        const res = await getAllProperties("room");
+        if (isMounted) {
+          setRooms(res?.data?.data || []);
+        }
       } catch (error) {
-        console.log(error)
-        throw error;
+        console.error("Error fetching rooms:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    }
+    };
 
-    fetchHostels()
-  }, [])
+    fetchRooms();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredRooms = !applyFilters
     ? rooms
-    : rooms.filter((hostel) => {
+    : rooms.filter((room) => {
       const matchesSearch =
-        hostel.title
+        room.title
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        hostel.city
+        room.city
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
 
       const matchesPrice =
-        hostel.price >= priceRange[0] &&
-        hostel.price <= priceRange[1];
+        room.price >= priceRange[0] &&
+        room.price <= priceRange[1];
 
       return matchesSearch && matchesPrice;
     });
@@ -155,25 +165,45 @@ export default function Rooms() {
         {/* Results Count */}
         <div className="mb-6">
           <p className="text-slate-600">
-            Showing <span className="font-semibold text-slate-900">{filteredRooms.length}</span> rooms
+            Showing <span className="font-semibold text-slate-900">{loading ? "..." : filteredRooms.length}</span> rooms
           </p>
         </div>
 
         {/* Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRooms.map((room) => (
-            <PropertyCard key={room._id} property={room} />
-          ))}
-        </div>
-
-        {filteredRooms.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No rooms found</h3>
-            <p className="text-slate-600">Try adjusting your search or filters</p>
+        {loading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <div key={n} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-md animate-pulse">
+                <div className="h-48 bg-slate-200" />
+                <div className="p-5 space-y-3">
+                  <div className="h-5 bg-slate-200 rounded-md w-3/4" />
+                  <div className="h-4 bg-slate-200 rounded-md w-1/2" />
+                  <div className="flex gap-2 pt-2">
+                    <div className="w-14 h-6 bg-slate-200 rounded-full" />
+                    <div className="w-14 h-6 bg-slate-200 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredRooms.map((room) => (
+                <PropertyCard key={room._id} property={room} />
+              ))}
+            </div>
+
+            {filteredRooms.length === 0 && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">No rooms found</h3>
+                <p className="text-slate-600">Try adjusting your search or filters</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
