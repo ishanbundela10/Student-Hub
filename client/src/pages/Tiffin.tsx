@@ -58,9 +58,9 @@ const Tiffins: React.FC = () => {
         if (tiffin?.pricePerMeal) return tiffin.pricePerMeal;
 
         const prices: number[] = [];
-        if (tiffin?.pricing?.lunch?.singleMeal) prices.push(tiffin.pricing.lunch.singleMeal);
-        if (tiffin?.pricing?.dinner?.singleMeal) prices.push(tiffin.pricing.dinner.singleMeal);
-        if (tiffin?.pricing?.combo?.singleMeal) prices.push(tiffin.pricing.combo.singleMeal);
+        if (tiffin?.pricing?.pricePerMeal) prices.push(tiffin.pricing.pricePerMeal);
+        if (tiffin?.pricing?.pricePerMeal) prices.push(tiffin.pricing.pricePerMeal);
+        if (tiffin?.pricing?.pricePerMeal) prices.push(tiffin.pricing.pricePerMeal);
 
         return prices.length > 0 ? Math.min(...prices) : 120;
     };
@@ -69,10 +69,9 @@ const Tiffins: React.FC = () => {
         const foodType = (type || "").toLowerCase();
         switch (foodType) {
             case "veg":
-                // case "pure veg":
                 return (
                     <span className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md text-green-700 text-xs font-extrabold px-3 py-1.5 rounded-full shadow-sm">
-                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 border border-white"></span> Pure Veg
+                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 border border-white"></span> Veg
                     </span>
                 );
             case "non-veg":
@@ -143,8 +142,8 @@ const Tiffins: React.FC = () => {
                                     key={type}
                                     onClick={() => setSelectedType(type)}
                                     className={`px-5 py-2.5 rounded-xl text-sm font-bold capitalize transition-all ${isSelected
-                                            ? "bg-linear-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
-                                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                        ? "bg-linear-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
+                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                         }`}
                                 >
                                     {type === "all" ? "All Tiffins" : type}

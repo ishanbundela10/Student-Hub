@@ -5,38 +5,34 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 
 const requestVisit = asyncHandler(async (req, res) => {
-  const { propertyId, day, from, to, message } = req.body;
+    const { propertyId, day, from, to, message } = req.body;
 
-  if (!propertyId || !day || !from || !to) {
-    throw new ApiError(400, "All required fields are missing");
-  }
+    if (!propertyId || !day || !from || !to) {
+        throw new ApiError(400, "All required fields are missing");
+    }
 
-  const property = await Property.findById(propertyId);
+    const property = await Property.findById(propertyId);
 
-  if (!property) {
-    throw new ApiError(404, "Property not found");
-  }
+    if (!property) {
+        throw new ApiError(404, "Property not found");
+    }
 
-  const visit = await Visit.create({
-    property: property._id,
-    owner: property.owner,
-    student: req.user._id,
+    const visit = await Visit.create({
+        property: property._id,
+        owner: property.owner,
+        student: req.user._id,
 
-    day,
-    from,
-    to,
+        day,
+        from,
+        to,
 
-    message,
-  });
+        message,
+    });
 
-  return res.status(201).json(
-    new ApiResponse(
-      201,
-      visit,
-      "Visit request sent successfully"
-    )
-  );
-}); 
+    return res.status(201).json(
+        new ApiResponse(201, visit, "Visit request submitted successfully")
+    );
+});
 
 const getOwnerVisits = asyncHandler(async (req, res) => {
     const ownerId = req.user._id;
@@ -55,9 +51,9 @@ const getOwnerVisits = asyncHandler(async (req, res) => {
 const getPendingVisits = asyncHandler(async (req, res) => {
     const ownerId = req.user._id;
 
-    const visits = await Visit.find({ 
-        owner: ownerId, 
-        status: "pending" 
+    const visits = await Visit.find({
+        owner: ownerId,
+        status: "pending"
     })
         .populate("property", "title address city images price")
         .populate("student", "fullName email phone avatar")
@@ -123,10 +119,10 @@ const clearAllVisits = asyncHandler(async (req, res) => {
     );
 });
 
-export { 
-    requestVisit, 
-    getOwnerVisits, 
-    getPendingVisits, 
+export {
+    requestVisit,
+    getOwnerVisits,
+    getPendingVisits,
     updateVisitStatus,
     deleteVisit,
     clearAllVisits

@@ -214,7 +214,7 @@ export interface TiffinService {
   kitchenName?: string;
   providerName: string;
   description: string;
-  foodType: "Pure Veg" | "Non-Veg" | "Jain" | "Vegan" | "veg" | "non-veg" | "jain" | "vegan";
+  foodType: "Veg" | "Non-Veg" | "Jain" | "Vegan";
   
   typicalMeal: string;
   
@@ -250,4 +250,15 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: Date;
+}
+
+
+export interface NotificationItem {
+    _id: string;
+    title: string;
+    message: string;
+    type: "booking_request" | "visit_request" | "tiffin_subscription" | "payment" | "system";
+    isRead: boolean;
+    link?: string;
+    createdAt: string;
 }

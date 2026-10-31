@@ -14,3 +14,4 @@ nodemon ek dev dependency hai jo sirf development me ayegi production me nhi jay
 
 ek or plugin hota hai prettier ye automatically fix krdeta hai indentation wagera, toh hum ek .prettierrc krke file banayege usme configurations rhege.
 ek or file banti hai .prettierignore jis jis file me prettier ko ignore krna hai vo dedo
+# downlaod morgon to get error in terminal.

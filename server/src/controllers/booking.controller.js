@@ -8,43 +8,47 @@ import { Visit } from "../models/visit.model.js";
 
 const createBooking = asyncHandler(async (req, res) => {
 
-    const { propertyId, message } = req.body;
+    try {
+        const { propertyId, message } = req.body;
 
-    if (!propertyId) {
-        throw new ApiError(400, "Property ID is required");
+        if (!propertyId) {
+            throw new ApiError(400, "Property ID is required");
+        }
+
+        const property = await Property.findById(propertyId);
+
+        if (!property) {
+            throw new ApiError(404, "Property not found");
+        }
+
+        if (!property.isAvailable) {
+            throw new ApiError(400, "This property is already booked");
+        }
+
+        // Check if user already has a pending booking for this property
+        const existingBooking = await Booking.findOne({
+            property: propertyId,
+            student: req.user._id,
+            status: "pending"
+        });
+
+        if (existingBooking) {
+            throw new ApiError(400, "You already have a pending booking for this property");
+        }
+
+        const booking = await Booking.create({
+            property: property._id,
+            owner: property.owner,
+            student: req.user._id,
+            message: message || ""
+        });
+        return res.status(201).json({
+            success: true,
+            message: "Booking request sent to owner",
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
-
-    const property = await Property.findById(propertyId);
-
-    if (!property) {
-        throw new ApiError(404, "Property not found");
-    }
-
-    if (!property.isAvailable) {
-        throw new ApiError(400, "This property is already booked");
-    }
-
-    // Check if user already has a pending booking for this property
-    const existingBooking = await Booking.findOne({
-        property: propertyId,
-        student: req.user._id,
-        status: "pending"
-    });
-
-    if (existingBooking) {
-        throw new ApiError(400, "You already have a pending booking for this property");
-    }
-
-    const booking = await Booking.create({
-        property: property._id,
-        owner: property.owner,
-        student: req.user._id,
-        message: message || ""
-    });
-
-    return res.status(201).json(
-        new ApiResponse(201, booking, "Booking request sent successfully")
-    );
 });
 
 const getOwnerBookings = asyncHandler(async (req, res) => {
@@ -86,7 +90,7 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
     // ✅ If accepted → Mark property as booked (isAvailable: false)
     if (status === "accepted") {
         booking.bookedAt = new Date();
-        
+
         const property = await Property.findById(booking.property);
         if (property) {
             property.isAvailable = false;  // 🏠 Auto mark as booked
@@ -108,10 +112,10 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
 
     return res.status(200).json(
         new ApiResponse(
-            200, 
-            booking, 
-            status === "accepted" 
-                ? "Booking accepted! Property marked as booked." 
+            200,
+            booking,
+            status === "accepted"
+                ? "Booking accepted! Property marked as booked."
                 : "Booking rejected"
         )
     );
@@ -165,9 +169,9 @@ const getOwnerContacts = asyncHandler(async (req, res) => {
 
     bookings.forEach((booking) => {
         if (!booking.student) return;
-        
+
         const studentId = booking.student._id.toString();
-        
+
         if (!contactsMap.has(studentId)) {
             contactsMap.set(studentId, {
                 _id: booking.student._id,
@@ -190,7 +194,7 @@ const getOwnerContacts = asyncHandler(async (req, res) => {
             date: booking.createdAt
         });
         contact.totalInteractions++;
-        
+
         if (new Date(booking.createdAt) > new Date(contact.lastActivity)) {
             contact.lastActivity = booking.createdAt;
         }
@@ -198,9 +202,9 @@ const getOwnerContacts = asyncHandler(async (req, res) => {
 
     visits.forEach((visit) => {
         if (!visit.student) return;
-        
+
         const studentId = visit.student._id.toString();
-        
+
         if (!contactsMap.has(studentId)) {
             contactsMap.set(studentId, {
                 _id: visit.student._id,

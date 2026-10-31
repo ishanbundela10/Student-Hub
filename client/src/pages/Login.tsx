@@ -1,50 +1,41 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { getCurrentUser, login } from '@/api/auth';
-import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-  const auth = useContext(AuthContext)
-
-  if (!auth){
-    return null
-  }
-
-  const { setUser } = auth;
-
-  if (!setUser){
-    return null
-  }
+  const auth = useContext(AuthContext);
 
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // const handleSubmit = (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   // Handle login logic here
-  //   navigate('/');
-  // };
+  if (!auth) return null;
+  const { setUser } = auth;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Handle login logic here
-    try {
-      const res = await login({
-        email,
-        password,
-      })
-      
-      const currentUser = await getCurrentUser()
-      setUser(currentUser.data.data)
-      console.log(res.data)
-      navigate('/')
+    setError(null); 
+    setIsLoading(true);
 
-    } catch (error) {
-      console.error(error);
+    try {
+      await login({ email, password });
+      const currentUser = await getCurrentUser();
+      console.log(currentUser)
+      setUser(currentUser.data.data);
+      navigate('/');
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Invalid email or password. Please try again.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -75,6 +66,14 @@ export default function Login() {
               <p className="text-slate-600">Sign in to your StudentHub account</p>
             </div>
 
+            {/* Error Banner */}
+            {error && (
+              <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3.5 rounded-2xl text-sm font-medium animate-in slide-in-from-top-2">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-3 py-1 rounded-full text-sm font-medium mb-4">
@@ -89,11 +88,13 @@ export default function Login() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); setError(null); }}
                     placeholder="you@example.com"
-                    // className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                    className=" w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-violet-200 focus:border-violet-500 transition-all "
+                    className={`w-full pl-12 pr-4 py-3.5 rounded-xl border bg-slate-50 focus:bg-white focus:ring-4 focus:ring-violet-200 focus:border-violet-500 transition-all outline-none ${
+                      error ? 'border-red-300 bg-red-50/30' : 'border-slate-200'
+                    }`}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -107,10 +108,13 @@ export default function Login() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     placeholder="••••••••"
-                    className="w-full pl-12 pr-12 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className={`w-full pl-12 pr-12 py-3 bg-white border rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent ${
+                      error ? 'border-red-300' : 'border-slate-200'
+                    }`}
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
@@ -132,10 +136,17 @@ export default function Login() {
 
               <button
                 type="submit"
-                // className="w-full py-3.5 bg-linear-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200"
-                className=" w-full py-3.5 rounded-xl text-white font-semibold bg-linear-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 hover:scale-[1.02] transition-all duration-300 shadow-lg hover:shadow-violet-400/30 "
+                disabled={isLoading}
+                className="w-full py-3.5 rounded-xl text-white font-semibold bg-linear-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 hover:scale-[1.02] transition-all duration-300 shadow-lg hover:shadow-violet-400/30 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100 flex items-center justify-center gap-2"
               >
-                Sign In
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </button>
             </form>
 
@@ -181,42 +192,27 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Side - Image/Info */}
+      {/* Right Side - Info */}
       <div className="hidden lg:flex flex-1 bg-linear-to-br from-violet-600 to-indigo-600 items-center justify-center p-12">
-
         <div className="max-w-md text-white">
           <h2 className="text-4xl font-bold mb-6">Find Your Perfect Student Accommodation</h2>
           <p className="text-violet-100 text-lg mb-8">
             Join thousands of students who found their ideal rooms, hostels, and tiffin services through StudentHub.
           </p>
           <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+            {['5,000+ Verified Listings', '50+ Cities Covered', '24/7 Customer Support'].map((item) => (
+              <div key={item} className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <span>{item}</span>
               </div>
-              <span>5,000+ Verified Listings</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>50+ Cities Covered</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>24/7 Customer Support</span>
-            </div>
+            ))}
           </div>
         </div>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }

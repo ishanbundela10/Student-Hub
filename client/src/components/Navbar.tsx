@@ -18,7 +18,9 @@ export default function Navbar() {
     { path: '/dashboard', label: 'Dashboard', icon: User },
   ];
 
-  const { user, setUser } = useContext(AuthContext);
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
+  const setUser = auth?.setUser;
 
   const navigate = useNavigate();
 
@@ -26,7 +28,7 @@ export default function Navbar() {
     try {
       await logout();
 
-      setUser(null);
+      setUser?.(null);
 
       navigate("/login");
     } catch (error) {

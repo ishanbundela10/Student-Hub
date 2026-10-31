@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, User, Phone, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { getCurrentUser, signup } from '@/api/auth';
 import { AuthContext } from '@/context/AuthContext';
 
@@ -14,6 +14,8 @@ export default function Signup() {
     password: '',
     role: 'student' as 'student' | 'food_service' | 'owner'
   });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const auth = useContext(AuthContext);
 
@@ -25,33 +27,36 @@ export default function Signup() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Handle login logic here
+    setError(null);
+    setIsLoading(true);
+
     try {
-      await signup
-        ({
-          fullname: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phoneNumber: formData.phone,
-          role: formData.role,
-        });
+      await signup({
+        fullname: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phoneNumber: formData.phone,
+        role: formData.role,
+      });
 
       const res = await getCurrentUser();
       setUser(res.data.data);
-      // console.log(res.data);
-      navigate('/Profile');
 
       const redirectPath = localStorage.getItem('redirectAfterLogin');
-        
-        if (redirectPath) {
-            localStorage.removeItem('redirectAfterLogin');
-            navigate(redirectPath);
-        } else {
-            navigate('/dashboard');
-        }
-
-    } catch (error) {
-      console.error(error);
+      if (redirectPath) {
+        localStorage.removeItem('redirectAfterLogin');
+        navigate(redirectPath);
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Something went wrong. Please try again.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,6 +86,14 @@ export default function Signup() {
             <p className="text-slate-600">Join StudentHub today - it's free!</p>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3.5 rounded-2xl text-sm font-medium">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -92,10 +105,11 @@ export default function Signup() {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setError(null); }}
                   placeholder="John Doe"
                   className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -109,10 +123,11 @@ export default function Signup() {
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setError(null); }}
                   placeholder="you@example.com"
                   className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -130,6 +145,7 @@ export default function Signup() {
                   placeholder="+91 98765 43210"
                   className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -152,6 +168,7 @@ export default function Signup() {
                       ? 'border-violet-600 bg-violet-50 text-violet-700'
                       : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
+                    disabled={isLoading}
                   >
                     {role.label}
                   </button>
@@ -168,11 +185,12 @@ export default function Signup() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setError(null); }}
                   placeholder="••••••••"
                   className="w-full pl-12 pr-12 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   required
                   minLength={8}
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
@@ -206,9 +224,17 @@ export default function Signup() {
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-linear-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-linear-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Create Account
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                'Create Account'
+              )}
             </button>
           </form>
 
@@ -253,7 +279,7 @@ export default function Signup() {
         </div>
       </div>
 
-      {/* Right Side - Image/Info */}
+      {/* Right Side - Info */}
       <div className="hidden lg:flex flex-1 bg-linear-to-br from-violet-600 to-indigo-600 items-center justify-center p-12">
         <div className="max-w-md text-white">
           <h2 className="text-4xl font-bold mb-6">Why Join StudentHub?</h2>
@@ -261,38 +287,21 @@ export default function Signup() {
             Get access to verified listings, connect with trusted providers, and find your perfect student accommodation.
           </p>
           <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+            {[
+              'Free to join and browse',
+              'Direct contact with owners',
+              'Save your favorite listings',
+              'Get personalized recommendations',
+            ].map((item) => (
+              <div key={item} className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <span>{item}</span>
               </div>
-              <span>Free to join and browse</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Direct contact with owners</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Save your favorite listings</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Get personalized recommendations</span>
-            </div>
+            ))}
           </div>
         </div>
       </div>

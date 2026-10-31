@@ -74,11 +74,11 @@ export const addTiffin = asyncHandler(async (req, res) => {
         kitchenName: actualKitchenName,
         providerName,
         description,
-        foodType: foodType || "Pure Veg",
+        foodType: foodType || "Veg",
         typicalMeal,
 
         // Simple Pricing
-        pricing:{
+        pricing: {
             pricePerMeal: Number(pricePerMeal),
             pricePerMonth: pricePerMonth ? Number(pricePerMonth) : null,
         },

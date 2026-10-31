@@ -266,12 +266,17 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide px-1">
             {dataLoading ? (
               [1, 2, 3].map((n) => <TiffinCardSkeleton key={n} />)
             ) : featuredTiffins.length > 0 ? (
               featuredTiffins.map((tiffin) => (
+                <div
+                  key={tiffin._id}
+                  className="min-w-[300px] w-[300px] sm:min-w-[320px] sm:w-[320px] snap-start shrink-0"
+                >
                 <TiffinCard key={tiffin._id} tiffin={tiffin} />
+                </div>
               ))
             ) : (
               <div className="col-span-full py-10 text-center text-slate-500 font-medium">

@@ -1,21 +1,17 @@
 import { useEffect, useState, useContext } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   Home, Building, Plus, TrendingUp, MapPin, CheckCircle, AlertCircle,
   User, Mail, Phone, DollarSign, Users, BedDouble,
-  Sparkles, Bell, Settings, MessageSquare, CalendarDays,
-  Edit, UserCircle
-} from 'lucide-react'
+  Sparkles, Settings, CalendarDays, Edit, UserCircle, MessageSquare
+} from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { getMyProperties } from '@/api/property';
 import { getOwnerDashboardStats } from '@/api/dashboard';
-// import { getOwnerVisits } from '@/api/visit';
-// import AllBookings from '../AllBookings';
-import AllBookings from '../AllBookings';  // Booking requests
+import { getOwnerVisits } from '@/api/visit'; // Ensure your visit API helper is exported
+import AllBookings from '../AllBookings';
 import AllVisits from '../AllVisits';
-import { useLocation } from 'react-router-dom';
-import OwnerContacts from '../OwnerContact';  // path adjust kar
-
+import OwnerContacts from '../OwnerContact';
 
 interface Property {
   _id: string;
@@ -27,50 +23,35 @@ interface Property {
   address?: string;
   images?: string[];
   status?: string;
+  createdAt?: string;
+}
+
+interface ActivityItem {
+  id: string;
+  action: string;
+  item: string;
+  time: string;
+  type: 'save' | 'apply' | 'view' | 'contact';
+  rawDate: Date;
 }
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [showNotifications, setShowNotifications] = useState(false);
   const [requestType, setRequestType] = useState<'visits' | 'bookings'>('bookings');
-  // const [notifications, setNotifications] = useState([
-  //   { id: 1, title: 'Application Approved!', message: 'Your application for Premium Boys Hostel has been approved.', time: '1 hour ago', unread: true },
-  //   { id: 2, title: 'New Message', message: 'Rajesh Kumar sent you a message about Cozy Studio.', time: '3 hours ago', unread: true },
-  //   { id: 3, title: 'Viewing Reminder', message: 'You have a property viewing scheduled for tomorrow at 10 AM.', time: '5 hours ago', unread: false },
-  //   { id: 4, title: 'Price Drop', message: 'Spacious 1BHK price reduced to ₹11,000/month.', time: '1 day ago', unread: false }
-  // ]);
 
   const location = useLocation();
-
   const auth = useContext(AuthContext);
 
-  if (!auth) {
-    return null;
-  }
-  const { user, loading } = auth
+  if (!auth) return null;
+  const { user, loading } = auth;
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-600 font-bold">Loading...</div>;
+  if (!user) return <Navigate to="/login" />;
 
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  const [myProperties, setMyProperties] = useState<Property[]>([])
-
-  useEffect(() => {
-    const fetchProperties = async () => {
-      try {
-        const res = await getMyProperties()
-        console.log(res?.data.data)
-        setMyProperties(res?.data.data)
-      } catch (error) {
-        console.log(error)
-      }
-    }
-    fetchProperties()
-  }, [])
+  const [myProperties, setMyProperties] = useState<Property[]>([]);
+  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [visitRequestCount, setVisitRequestCount] = useState(0);
 
   const [stats, setStats] = useState({
     activeListings: 0,
@@ -79,46 +60,129 @@ export default function Dashboard() {
     monthlyIncome: 0,
   });
 
+  const ACTIVITY_PREVIEW_COUNT = 4;
+
+  // ===================== FETCH REAL DATA =====================
+
+  const fetchProperties = async () => {
+    try {
+      const res = await getMyProperties();
+      const props = res?.data?.data || res?.data || [];
+      setMyProperties(Array.isArray(props) ? props : []);
+      return props;
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+      return [];
+    }
+  };
 
   const fetchStats = async () => {
     try {
       const res = await getOwnerDashboardStats();
-      console.log("=== DASHBOARD STATS ===");
-      console.log("Full response:", res?.data);
-      console.log("Stats data:", res?.data.data);
-      console.log("bookingRequests:", res?.data.data.bookingRequests);
-
-      setStats(res?.data.data);
+      if (res?.data?.data) {
+        setStats(res.data.data);
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching dashboard stats:", error);
     }
   };
-  useEffect(() => {
 
-    fetchStats();
+  // Helper function to convert DB dates into "X hours ago"
+  const formatTimeAgo = (dateInput?: string | Date) => {
+    if (!dateInput) return "Recently";
+    const date = new Date(dateInput);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (seconds < 60) return "Just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? "s" : ""} ago`;
+  };
+
+  // Build Real Activity Feed from DB records
+  const loadRecentActivities = async (properties: Property[]) => {
+    const activities: ActivityItem[] = [];
+
+    // 1. Property listings
+    properties.forEach((prop) => {
+      if (prop.createdAt) {
+        activities.push({
+          id: `prop-${prop._id}`,
+          action: "Listed a new property",
+          item: prop.title || "Unnamed Property",
+          time: formatTimeAgo(prop.createdAt),
+          type: "save",
+          rawDate: new Date(prop.createdAt),
+        });
+      }
+    });
+
+    // 2. Visit requests
+    try {
+      const visitRes = await getOwnerVisits();
+      const visits = visitRes?.data?.data || visitRes?.data || [];
+      if (Array.isArray(visits)) {
+        // Count pending visits for badge
+        const pendingVisits = visits.filter(
+          (v: any) => !v.status || v.status === "pending"
+        ).length;
+        setVisitRequestCount(pendingVisits);
+
+        visits.forEach((v: any) => {
+          const studentName =
+            v.student?.fullname || v.student?.fullName || "A student";
+          const propertyTitle = v.property?.title || "your property";
+          const statusLabel =
+            v.status === "accepted"
+              ? "accepted"
+              : v.status === "rejected"
+                ? "rejected"
+                : "received";
+
+          activities.push({
+            id: `visit-${v._id}`,
+            action: `Visit request ${statusLabel} from ${studentName}`,
+            item: propertyTitle,
+            time: formatTimeAgo(v.createdAt),
+            type: "apply",
+            rawDate: new Date(v.createdAt || Date.now()),
+          });
+        });
+      }
+    } catch (err) {
+      // Visit API optional
+    }
+
+    // Sort by latest first & limit to top 5
+    activities.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+    setRecentActivities(activities);
+  };
+
+  const totalRequestsBadge = (stats.bookingRequests || 0) + (visitRequestCount || 0);
+
+  useEffect(() => {
+    const initDashboard = async () => {
+      const props = await fetchProperties();
+      await fetchStats();
+      await loadRecentActivities(props);
+    };
+
+    initDashboard();
+
     if (location.state?.refresh) {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
-  const refreshDashboard = () => {
-    fetchStats()
+  const refreshDashboard = async () => {
+    const props = await fetchProperties();
+    await fetchStats();
+    await loadRecentActivities(props);
   };
-
-
-  const recentActivity = [
-    { id: 1, action: 'Accepted a tenant request', item: 'Cozy Studio Near University', time: '2 hours ago', type: 'apply' },
-    { id: 2, action: 'Updated room pricing', item: 'Premium Boys Hostel', time: '5 hours ago', type: 'view' },
-    { id: 3, action: 'Added a new listing', item: 'Girls Hostel - Safe & Secure', time: '1 day ago', type: 'save' },
-    { id: 4, action: 'Responded to a booking enquiry', item: 'Ghar Ka Khana Tiffin', time: '2 days ago', type: 'contact' }
-  ];
-
-  const notifications = [
-    { id: 1, title: 'New booking request', message: 'A student requested to book a room in Cozy Studio.', time: '1 hour ago', unread: true },
-    { id: 2, title: 'Payment received', message: 'Monthly rent payment was received for Premium Boys Hostel.', time: '3 hours ago', unread: true },
-    { id: 3, title: 'Maintenance reminder', message: 'Please verify the AC in the deluxe room.', time: '5 hours ago', unread: false }
-  ];
-
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -133,7 +197,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen pt-20 pb-12 bg-slate-50 dark:bg-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -145,65 +209,15 @@ export default function Dashboard() {
                 Manage your listings, requests, and occupancy from one place.
               </p>
             </div>
+
+            {/* Quick Actions / Settings Link */}
             <div className="flex items-center space-x-4">
-
-              {/* Notifications */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
-                >
-                  <Bell className="w-6 h-6 text-slate-600 dark:text-slate-300" />
-                  {notifications.filter(n => n.unread).length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                      {notifications.filter(n => n.unread).length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                      <h3 className="font-semibold text-slate-900 dark:text-white">Notifications</h3>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`p-4 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 ${notification.unread ? 'bg-violet-50 dark:bg-violet-900/10' : ''
-                            }`}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <h4 className="font-medium text-slate-900 dark:text-white text-sm">
-                              {notification.title}
-                            </h4>
-                            {notification.unread && (
-                              <span className="w-2 h-2 bg-violet-500 rounded-full"></span>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-slate-400">{notification.time}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 text-center">
-                      <button className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:text-violet-700">
-                        View all notifications
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Settings */}
               <Link
                 to="/profile"
-                className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
+                className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold text-sm"
               >
-                <Settings className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+                <Settings className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                <span>Account Settings</span>
               </Link>
             </div>
           </div>
@@ -258,7 +272,6 @@ export default function Dashboard() {
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Tabs & Content */}
           <div className="lg:col-span-2 space-y-8">
             {/* Tab Navigation */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-2 shadow-lg">
@@ -284,7 +297,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Tab Content */}
+            {/* Tab Content: Overview */}
             {activeTab === 'overview' && (
               <div className="space-y-8">
                 {/* Quick Actions */}
@@ -301,17 +314,18 @@ export default function Dashboard() {
                     </Link>
 
                     <button
-                      onClick={() => setActiveTab('requests')}
+                      onClick={() => setActiveTab("requests")}
                       className="flex flex-col items-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors relative"
                     >
-                      <Bell className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2" />
+                      <CheckCircle className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2" />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         View Requests
                       </span>
-                      {/* Notification badge */}
-                      {stats.bookingRequests > 0 && (
-                        <span className="absolute top-2 right-2 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                          {stats.bookingRequests}
+
+                      {/* Combined Booking + Visit badge */}
+                      {totalRequestsBadge > 0 && (
+                        <span className="absolute top-2 right-2 min-w-5 h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-sm">
+                          {totalRequestsBadge > 9 ? "9+" : totalRequestsBadge}
                         </span>
                       )}
                     </button>
@@ -322,9 +336,10 @@ export default function Dashboard() {
                     >
                       <CalendarDays className="w-8 h-8 text-orange-600 dark:text-orange-400 mb-2" />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Manage Visit Timings
+                        Manage Properties
                       </span>
                     </button>
+
                     <Link
                       to="/profile"
                       className="flex flex-col items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
@@ -334,98 +349,153 @@ export default function Dashboard() {
                     </Link>
                   </div>
                 </div>
-
-                {/* Recent Activity */}
+                {/* ⚡ REAL RECENT ACTIVITY FEED */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Recent Activity</h2>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity) => (
-                      <div key={activity.id} className="flex items-start space-x-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-                        <div className="w-10 h-10 bg-white dark:bg-slate-600 rounded-lg flex items-center justify-center shrink-0">
-                          {getActivityIcon(activity.type)}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-slate-900 dark:text-white">
-                            <span className="font-medium">{activity.action}</span>
-                            <span className="text-slate-600 dark:text-slate-300"> - {activity.item}</span>
-                          </p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{activity.time}</p>
-                        </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                      Recent Activity
+                    </h2>
+                    <div className='flex items-center gap-3'>
+                      <div>
+                        {recentActivities.length > 0 && (
+                          <span className="text-xs font-semibold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-full">
+                            {recentActivities.length} total
+                          </span>
+                        )}
                       </div>
-                    ))}
+                      {/* Show more / Show less */}
+                      {recentActivities.length > ACTIVITY_PREVIEW_COUNT && (
+                        <div className=" text-center">
+                          <button
+                            onClick={() => setShowAllActivities((prev) => !prev)}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                          >
+                            {showAllActivities ? (
+                              <>Show less</>
+                            ) : (
+                              <>
+                                Show more
+                                <span className="bg-violet-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md">
+                                  +{recentActivities.length - ACTIVITY_PREVIEW_COUNT}
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {recentActivities.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                      <Sparkles className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                        No recent activities found.
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Activities will appear as students interact with your listings.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-4">
+                        {(showAllActivities
+                          ? recentActivities
+                          : recentActivities.slice(0, ACTIVITY_PREVIEW_COUNT)
+                        ).map((activity) => (
+                          <div
+                            key={activity.id}
+                            className="flex items-start space-x-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl"
+                          >
+                            <div className="w-10 h-10 bg-white dark:bg-slate-600 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+                              {getActivityIcon(activity.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-slate-900 dark:text-white text-sm font-medium leading-snug">
+                                <span>{activity.action}</span>
+                                <span className="text-violet-600 dark:text-violet-400 font-bold ml-1">
+                                  {" "}
+                                  - {activity.item}
+                                </span>
+                              </p>
+                              <p className="text-xs text-slate-400 mt-1 font-medium">
+                                {activity.time}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
 
+            {/* Properties Tab */}
             {activeTab === 'properties' && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">My Properties</h2>
-                  {myProperties.length > 0 ? <Link to="/add-property" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:text-violet-700">
-                    Add new
-                  </Link> : ''}
+                  {myProperties.length > 0 && (
+                    <Link to="/add-property" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:text-violet-700">
+                      Add new
+                    </Link>
+                  )}
                 </div>
-                {myProperties.length > 0 ? <div className="grid md:grid-cols-2 gap-4">
-                  {myProperties.map((property) => {
-                    const locationText = [property.address, property.city, property.state].filter(Boolean).join(', ');
 
-                    return (
-                      <div key={property._id} className="flex space-x-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-                        <img
-                          src={property.images?.[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400'}
-                          alt={property.title}
-                          className="w-24 h-24 object-cover rounded-lg shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${property.propertyType === 'room' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' :
-                              property.propertyType === 'hostel' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                                'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                              }`}>
-                              {property.propertyType}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                              {property.status || 'Live'}
-                            </span>
-                          </div>
-                          <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{property.title}</h3>
-                          <div className="flex items-center text-slate-500 dark:text-slate-400 text-xs mt-1">
-                            <MapPin className="w-3 h-3 mr-1" />
-                            {locationText || 'Location not added'}
-                          </div>
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-lg font-bold text-violet-600 dark:text-violet-400">
-                              ₹{property.price?.toLocaleString() || '0'}
-                              /month
-                            </span>
-                            <div className="flex flex-col gap-2 justify-center">
+                {myProperties.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {myProperties.map((property) => {
+                      const locationText = [property.address, property.city, property.state].filter(Boolean).join(', ');
+
+                      return (
+                        <div key={property._id} className="flex space-x-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                          <img
+                            src={property.images?.[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400'}
+                            alt={property.title}
+                            className="w-24 h-24 object-cover rounded-lg shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${property.propertyType === 'room' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' :
+                                property.propertyType === 'hostel' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                }`}>
+                                {property.propertyType}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                                {property.status || 'Live'}
+                              </span>
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{property.title}</h3>
+                            <div className="flex items-center text-slate-500 dark:text-slate-400 text-xs mt-1">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              {locationText || 'Location not added'}
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-lg font-bold text-violet-600 dark:text-violet-400">
+                                ₹{property.price?.toLocaleString() || '0'}/month
+                              </span>
                               <Link
                                 to={`/edit-property/${property._id}`}
                                 className="p-2 bg-violet-100 text-violet-700 rounded-lg hover:bg-violet-200 transition-colors"
-                                title="Edit"
+                                title="Edit Property"
                               >
                                 <Edit className="w-4 h-4" />
                               </Link>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div> :
-                  <div className="flex flex-col items-center justify-center py-16 bg-gray-200 border border-dashed border-slate-300 rounded-3xl">
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 bg-slate-50 dark:bg-slate-700/30 border border-dashed border-slate-300 dark:border-slate-700 rounded-3xl">
                     <Building className="w-16 h-16 text-violet-400 mb-4" />
-
-                    <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                      No Properties Yet
-                    </h3>
-
-                    <p className="text-slate-500 text-center max-w-md mb-6">
-                      You haven't listed any rooms, hostels, or PGs yet.
-                      Start by adding your first property and make it available to students.
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">No Properties Yet</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-center max-w-md mb-6">
+                      You haven't listed any rooms, hostels, or PGs yet. Start by adding your first property.
                     </p>
-
                     <Link
                       to="/add-property"
                       className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-all shadow-lg"
@@ -433,18 +503,16 @@ export default function Dashboard() {
                       <Plus className="w-5 h-5" />
                       Add Your First Property
                     </Link>
-                  </div>}
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Requests Tab */}
             {activeTab === 'requests' && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                    Tenant Requests
-                  </h2>
-
-                  {/* ✅ Sub-tabs: Visit / Booking */}
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Tenant Requests</h2>
                   <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-700 rounded-xl w-fit">
                     <button
                       onClick={() => setRequestType('bookings')}
@@ -469,7 +537,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* ✅ Content based on sub-tab */}
                 <div className="mt-6">
                   {requestType === 'bookings' ? (
                     <AllBookings onAction={refreshDashboard} />
@@ -480,21 +547,19 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Contact Tab */}
             {activeTab === 'contact' && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    My Contacts
-                  </h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">My Contacts</h2>
                 </div>
                 <OwnerContacts />
               </div>
             )}
           </div>
 
-          {/* Right Column - Profile & Tips */}
+          {/* Right Column: Profile Summary & Help */}
           <div className="space-y-8">
-            {/* Profile Card */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
               <div className="text-center mb-6">
                 <div className="w-24 h-24 bg-linear-to-br from-violet-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white text-4xl font-bold mx-auto mb-4">
@@ -509,12 +574,12 @@ export default function Dashboard() {
 
               <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-                  <Mail className="w-5 h-5 text-slate-400" />
-                  <span className="text-sm">{user.email}</span>
+                  <Mail className="w-5 h-5 text-slate-400 shrink-0" />
+                  <span className="text-sm truncate">{user.email}</span>
                 </div>
                 <div className="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
-                  <Phone className="w-5 h-5 text-slate-400" />
-                  <span className="text-sm">{user.phoneNumber}</span>
+                  <Phone className="w-5 h-5 text-slate-400 shrink-0" />
+                  <span className="text-sm">{user.phoneNumber || 'No phone added'}</span>
                 </div>
               </div>
 
@@ -527,35 +592,6 @@ export default function Dashboard() {
               </Link>
             </div>
 
-            {/* Tips Card
-            <div className="bg-linear-to-br from-violet-600 to-indigo-600 rounded-2xl p-6 shadow-lg text-white">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <Star className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold">Pro Tips</h3>
-              </div>
-              <ul className="space-y-3 text-violet-100 text-sm">
-                <li className="flex items-start space-x-2">
-                  <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <span>Always visit the property before making payment</span>
-                </li>
-                <li className="flex items-start space-x-2">
-                  <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <span>Read reviews from other students</span>
-                </li>
-                <li className="flex items-start space-x-2">
-                  <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <span>Verify all amenities before signing agreement</span>
-                </li>
-                <li className="flex items-start space-x-2">
-                  <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <span>Save multiple options to compare later</span>
-                </li>
-              </ul>
-            </div> */}
-
-            {/* Help Card */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
